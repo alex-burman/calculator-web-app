@@ -33,7 +33,7 @@ const operators = {
         return a + b;
     },
     subtract(a, b) {
-        return a + b;
+        return a - b;
     },
     multiply(a, b) {
         return a * b;
@@ -42,8 +42,11 @@ const operators = {
         return a / b;
     },
     operate(operator, a, b) {
+        console.log('test',operator, a, b);
         if (operator in this) {
-            return this[operator](a, b);
+            let temp = this[operator](a, b);
+            console.log('This is the operate function result', temp)
+            return temp;
         } else {
             console.log('invalid operator');
         }
@@ -79,3 +82,36 @@ keys.addEventListener('click', e => {
         }
     }
 })
+
+
+
+let testA = ['2', 'multiply', '2', 'add', '3', 'multiply', '4']
+let testB = ['2','add','2','add','2','divide','2'];
+let testC = ['4', 'add', '2','multiply','3'];
+
+
+const evaluate= function (arr) {
+    if (arr.length < 2) return arr[0];
+
+    let opIndex = arr.length - 2;
+
+    if (arr.includes('add') || arr.includes('subtract')) {
+        for (let i = (arr.length - 1); i >= 0; i--) {
+            let item = arr[i];
+            if (item == 'add' || item == 'subtract') {
+                opIndex = i;
+                break;
+            }
+        }
+    }
+
+    let left = arr.slice(0, opIndex);
+    let right = arr.slice(opIndex + 1);
+    let oper = arr[opIndex];
+
+    return operators.operate(oper, +eval2(left), +eval2(right));
+}
+
+const test2 = function (func) {
+    console.log(func);
+}
