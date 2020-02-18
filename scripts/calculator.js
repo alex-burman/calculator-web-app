@@ -62,16 +62,17 @@ let testF = ['8', 'multiply', '(','2','divide','(','2','divide','2',')',')']
 
 let testStr = '8(8*2)+2';
 let testStrA = '(8+((2))*(2)/(2)+1)'
+let testStrB = ['2.1','+','10','/','2']
 
 const testEval = function (str) {
     let result = evaluate(prepLine(str));
     console.log(result);
 }
 
-const prepLine = function (str) {
+const prepLine = function (arr) {
     let prepped = [];
 
-    str.split('').forEach((item, index, arr) => {
+    arr.forEach((item, index, arr) => {
         let addItem;
 
         if (
@@ -91,6 +92,7 @@ const prepLine = function (str) {
         } else {
             addItem = item;
         }
+        console.log(prepped)
 
         prepped = prepped.concat(addItem);
     })
