@@ -21,85 +21,226 @@ const operators = {
     },
 }
 
-const keys = document.querySelector('.calculator__keys');
-const display = document.querySelector('.calculator__display');
+const calculatorState = {
+    currentCalculation: [{command: null, value: null}],
+    previousCalculation: [],
+    openScope: 0,
+    closedScope: 0,
+    updateCalculatorState(key) {
+        const command = key.dataset.command;
+        const lastItem = this.currentCalculation[this.currentCalculation.length - 1];
 
-keys.addEventListener('click', e => {
-    if (e.target.matches('button')) {
-        const key = e.target;
-        const action = key.dataset.action;
-        const keyContent = key.textContent;
-        const displayedNum = display.textContent;
-
-        if (!action) {
-            console.log('number key!');
-            console.log(displayedNum)
-            if (displayedNum == '0') {
-                display.textContent = keyContent;
-            } else {
-                display.textContent = displayedNum + keyContent;
-            }
+        if (doNothing(key.dataset.command, lastItem, this)) {
+            return;
         }
-        if (
-            action == 'add' ||
-            action == 'subtract' ||
-            action == 'multiply' ||
-            action == 'divide'
-        ) {
-            console.log('operator key!');
+        
+        if (command == 'clearEntry') {
+            this.clearLastEntry(lastItem);
+            return;
         }
-    }
-})
+        
+        if (command == 'clear') {
+            this.clear();
+            return;
+        }
+        
+        if (command == 'calculate') {
+            this.calculate(this.currentCalculation.slice(0));
+            return;
+        }
 
+        this.currentCalculation = this.updateCurrentCalculation(
+            command,
+            key.textContent,
+            lastItem, 
+            this.currentCalculation.slice(0)
+        );
 
+        if (command == 'open') {
+            this.openScope += 1;
+        }
+        if (command == 'close') {
+            this.closedScope += 1;
+        }
+    },
+    updateCurrentCalculation(newCommand, newValue, lastItem, currentCalc) {
+        if (!newCommand) {
+            newCommand = 'number';
+        }
 
-let testA = ['2', 'multiply', '2', 'add', '3', 'multiply', '4']
-let testB = ['2','add','2','add','2','divide','2'];
-let testC = ['4', 'add', '2','multiply','3','divide','2','subtract','20'];
-let testD = ['(','2',')','multiply','(','(','2',')',')'];
-let testE = ['(','(','2',')',')'];
-let testF = ['8', 'multiply', '(','2','divide','(','2','divide','2',')',')']
+        let newItem = createItem(newCommand, newValue, lastItem);
 
-let testStr = '8(8*2)+2';
-let testStrA = '(8+((2))*(2)/(2)+1)'
-let testStrB = ['2.1','+','10','/','2']
+        if (newCommand == 'operator' && lastItem.command == null) {
+            currentCalc.push({command: 'number', value: '0'});
+        }
 
-const testEval = function (str) {
-    let result = evaluate(prepLine(str));
-    console.log(result);
+        if (newItem.command == 'number' && lastItem.command == 'close') {
+            currentCalc.push({command: 'operator', value: '*'});
+        }
+
+        if (doReplace(newItem, lastItem) == true) {
+            currentCalc[currentCalc.length - 1] = newItem;
+        } else {
+            currentCalc.push(newItem);
+        }
+
+        return currentCalc;
+    },
+    calculate(calculation) {
+        const ans = evaluate(prepForEval(calculation));
+
+        this.previousCalculation.push({calculation, ans})
+        this.currentCalculation = [{command: null, value: null}];
+        this.currentCalculation.push({command: 'ans', value: `${ans}`})
+        return;
+    },
+    clearLastEntry(lastItem) {
+        if (lastItem.command == 'number' && lastItem.value.length > 1) {
+            lastItem.value = lastItem.value.slice(0, lastItem.value.length - 1);
+            return;
+        } else {
+            this.currentCalculation.pop();
+        }
+
+        if (lastItem.command == 'open') {
+            this.openScope -= 1;
+        }
+        if (lastItem.command == 'close') {
+            this.closedScope -= 1;
+        }
+    },
+    clear() {
+        this.currentCalculation = [{command: null, value: null}];
+        this.openScope = 0;
+        this.closedScope = 0;
+        return;
+    },
 }
 
-const prepLine = function (arr) {
-    let prepped = [];
-
-    arr.forEach((item, index, arr) => {
-        let addItem;
-
-        if (
-            index > 0 &&
-            item == '(' &&
-            (/[0-9]/.test(item) || arr[index - 1] == ')')
-        ) {
-            addItem = ['multiply',item];
-        } else if (item == '+') {
-            addItem = 'add';
-        } else if (item == '-') {
-            addItem = 'subtract';
-        } else if (item == '*') {
-            addItem = 'multiply';
-        } else if (item == '/') {
-            addItem = 'divide';
-        } else {
-            addItem = item;
+const createItem = function(newCommand, newValue, lastItem) {
+    if (newCommand == 'number') {
+        if (lastItem.command == 'number') {
+            newValue = lastItem.value + newValue;
         }
-        console.log(prepped)
+    }
 
-        prepped = prepped.concat(addItem);
-    })
+    if (newCommand == 'decimal') {
+        if (lastItem.command == 'number') {
+            newValue = lastItem.value + newValue;
+        } else {
+            newValue = '0.';
+        }
+
+        newCommand = 'number';
+    }
+
+    return {command: newCommand, value: newValue};
+}
+
+const doNothing = function (newCommand, lastItem, state) {
+    if (newCommand == 'calculate') {
+        return !(lastItem.command == 'number' || lastItem.command == 'close')
+    }
+
+    if (newCommand == 'clearEntry' && lastItem.command == null) {
+        return true;
+    }
+
+    if (newCommand == 'operator') {
+        return lastItem.command == 'open';
+    }
+    
+    if (newCommand == 'decimal') {
+        console.log(lastItem.command && lastItem.value)
+        return !(lastItem.command == null) && lastItem.value.includes('.')
+    }
+
+    if (newCommand == 'close') {
+        return (
+            state.openScope <= state.closedScope
+            || !(lastItem.command == 'number' || lastItem.command == 'close')
+        )
+    }
+
+    return false;
+}
+
+const doReplace = function (newItem, lastItem) {
+    if (lastItem.command == 'ans') {
+        return !(newItem.command == 'operator');
+    }
+
+    if (newItem.command == 'number' || newItem.command == 'decimal') {
+        return lastItem.command == 'number';
+    }
+
+    if (newItem.command == 'operator') {
+        return lastItem.command == 'operator';
+    }
+
+    return false;
+}
+
+const calcToString = function(calc) {
+    if (calc.length == 1) {
+        return '0';
+    }
+
+    return calc.reduce((string, item, index, arr) => {
+        if (item.command == null) {
+            return string;
+        }
+
+        const lastItem = arr[index - 1];
+
+        let next = item.value;
+        
+        if (
+            item.command == 'operator'
+            || lastItem.command == 'operator'
+        ) {
+            next = ' ' + next;
+        }
+        return string + next;
+    }, '')
+}
+
+const prepForEval = function(arr) {
+    let prepped = arr.reduce((newArr, item, index, arr) => {
+        if (item.value == null) {
+            return newArr;
+        }
+        if (item.value == '+') {
+            newArr.push('add');
+        } else if (item.value == '-') {
+            newArr.push('subtract');
+        } else if (item.value == '*') {
+            newArr.push('multiply');
+        } else if (item.value == '/') {
+            newArr.push('divide');
+        } else if (
+            item.value == '('
+            && index > 1
+            && arr[index - 1].command != 'operator'
+            && arr[index - 1].command != 'open'
+        ) {
+            newArr.push('multiply');
+            newArr.push(item.value);
+        } else {
+            newArr.push(item.value);
+        }
+        return newArr;
+    }, []);
+
+    while (calculatorState.closedScope < calculatorState.openScope) {
+        prepped.push(')');
+        calculatorState.closedScope += 1;
+    }
+
     return prepped;
 }
 
-const evaluate = function (arr) {
+const evaluate = function(arr) {
     while (arr.includes('(') && arr.includes(')')) {
         let open = 0;
         let close = 0;
@@ -109,9 +250,7 @@ const evaluate = function (arr) {
         for (let i = start; i < arr.length; i++) {
             if (arr[i] == '(') {
                 open++;
-            }
-
-            if (arr[i] == ')') {
+            } else if (arr[i] == ')') {
                 close++;
             }
 
@@ -139,9 +278,26 @@ const evaluate = function (arr) {
         }
     }
 
-    let left = arr.slice(0, index);
-    let right = arr.slice(index + 1);
-    let oper = arr[index];
-
-    return operators.operate(oper, +evaluate(left), +evaluate(right));
+    return operators.operate(
+        arr[index],
+        +evaluate(arr.slice(0, index)),
+        +evaluate(arr.slice(index + 1))
+    );
 }
+
+const updateCalcDisplay = function (state) {
+    const display = document.querySelector('.calculator__display');
+
+    let displayContent = calcToString(state.currentCalculation);
+
+    display.textContent = displayContent;
+}
+
+const keys = document.querySelector('.calculator__keys');
+
+keys.addEventListener('click', (e) => {
+    if (e.target.matches('button')) {
+        calculatorState.updateCalculatorState(e.target);
+        updateCalcDisplay(calculatorState);
+    }
+});
