@@ -13,7 +13,14 @@ const operators = {
     },
     operate(operator, a, b) {
         if (operator in this) {
+            let floatCorrection = 1;
+            while (a%1 > 0 || b%1 > 0) {
+                a *= 10;
+                b *= 10;
+                floatCorrection *= 10;
+            }
             let temp = this[operator](a, b);
+            temp = temp/floatCorrection;
             return temp;
         } else {
             console.log('invalid operator');
@@ -27,10 +34,15 @@ const calculatorState = {
     openScope: 0,
     closedScope: 0,
     updateCalculatorState(key) {
-        const command = key.dataset.command;
         const lastItem = this.currentCalculation[this.currentCalculation.length - 1];
 
-        if (doNothing(key.dataset.command, lastItem, this)) {
+        let command = key.dataset.command;
+
+        if (!command) {
+            command = 'number';
+        }
+
+        if (doNothing(command, lastItem, this)) {
             return;
         }
         
@@ -64,9 +76,9 @@ const calculatorState = {
         }
     },
     updateCurrentCalculation(newCommand, newValue, lastItem, currentCalc) {
-        if (!newCommand) {
-            newCommand = 'number';
-        }
+        // if (!newCommand) {
+        //     newCommand = 'number';
+        // }
 
         let newItem = createItem(newCommand, newValue, lastItem);
 
@@ -95,6 +107,10 @@ const calculatorState = {
         return;
     },
     clearLastEntry(lastItem) {
+
+        // removes the last entry from the current calculation. If last entry is a
+        // number with a length > 2, last entry is modifed
+
         if (lastItem.command == 'number' && lastItem.value.length > 1) {
             lastItem.value = lastItem.value.slice(0, lastItem.value.length - 1);
             return;
@@ -110,6 +126,9 @@ const calculatorState = {
         }
     },
     clear() {
+
+        // resets current calculation and open/closed scope properties
+
         this.currentCalculation = [{command: null, value: null}];
         this.openScope = 0;
         this.closedScope = 0;
@@ -118,6 +137,9 @@ const calculatorState = {
 }
 
 const createItem = function(newCommand, newValue, lastItem) {
+
+    // creates a new item to be added to the calculation.
+
     if (newCommand == 'number') {
         if (lastItem.command == 'number') {
             newValue = lastItem.value + newValue;
@@ -138,6 +160,9 @@ const createItem = function(newCommand, newValue, lastItem) {
 }
 
 const doNothing = function (newCommand, lastItem, state) {
+
+    // returns true if conditions are met, returns false otherwise
+
     if (newCommand == 'calculate') {
         return !(lastItem.command == 'number' || lastItem.command == 'close')
     }
@@ -166,6 +191,9 @@ const doNothing = function (newCommand, lastItem, state) {
 }
 
 const doReplace = function (newItem, lastItem) {
+
+    // returns true if conditions are met, otherwise returns false
+
     if (lastItem.command == 'ans') {
         return !(newItem.command == 'operator');
     }
@@ -182,6 +210,10 @@ const doReplace = function (newItem, lastItem) {
 }
 
 const calcToString = function(calc) {
+
+    // takes an array of objects and converts it into an string using 
+    // the 'value' property of those objects
+
     if (calc.length == 1) {
         return '0';
     }
@@ -206,6 +238,10 @@ const calcToString = function(calc) {
 }
 
 const prepForEval = function(arr) {
+
+    // takes an array of objects and creates an array of numbers, operations,
+    // and parens based on the 'value' property of each object
+
     let prepped = arr.reduce((newArr, item, index, arr) => {
         if (item.value == null) {
             return newArr;
@@ -241,6 +277,9 @@ const prepForEval = function(arr) {
 }
 
 const evaluate = function(arr) {
+
+    // recursively evaluates an array of numbers and operations (all srings) and returns the answer
+
     while (arr.includes('(') && arr.includes(')')) {
         let open = 0;
         let close = 0;
@@ -286,6 +325,9 @@ const evaluate = function(arr) {
 }
 
 const updateCalcDisplay = function (state) {
+
+    // updates the calculator display on the page using the calculator state
+
     const display = document.querySelector('.calculator__display');
 
     let displayContent = calcToString(state.currentCalculation);
