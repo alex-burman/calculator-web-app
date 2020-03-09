@@ -14,14 +14,27 @@ const operators = {
     operate(operator, a, b) {
         if (operator in this) {
             let floatCorrection = 1;
-            while (a%1 > 0 || b%1 > 0) {
-                a *= 10;
-                b *= 10;
-                floatCorrection *= 10;
+
+            if (operator == 'add' || operator == 'subtract') {
+                while (a%1 > 0 || b%1 > 0) {
+                    a *= 10;
+                    b *= 10;
+
+                    floatCorrection *= 10;
+                }
+            } else if (operator == 'multiply' || operator == 'divide'){
+                while (a%1 > 0 || b%1 > 0) {
+                    a *= 10;
+                    b *= 10;
+                    floatCorrection *= 100;
+                }
             }
-            let temp = this[operator](a, b);
-            temp = temp/floatCorrection;
-            return temp;
+
+            let ans = this[operator](a, b);
+    
+            ans = ans/floatCorrection;
+
+            return ans;
         } else {
             console.log('invalid operator');
         }
@@ -37,12 +50,13 @@ const calculatorState = {
         const lastItem = this.currentCalculation[this.currentCalculation.length - 1];
 
         let command = key.dataset.command;
+        let value = key.textContent;
 
         if (!command) {
             command = 'number';
         }
 
-        if (doNothing(command, lastItem, this)) {
+        if (doNothing(command, value, lastItem, this)) {
             return;
         }
         
@@ -76,13 +90,13 @@ const calculatorState = {
         }
     },
     updateCurrentCalculation(newCommand, newValue, lastItem, currentCalc) {
-        // if (!newCommand) {
-        //     newCommand = 'number';
-        // }
-
         let newItem = createItem(newCommand, newValue, lastItem);
 
-        if (newCommand == 'operator' && lastItem.command == null) {
+        if (
+            newCommand == 'operator'
+            && lastItem.command == null
+            && makeNegative(newValue, lastItem) == false
+        ) {
             currentCalc.push({command: 'number', value: '0'});
         }
 
@@ -100,10 +114,11 @@ const calculatorState = {
     },
     calculate(calculation) {
         const ans = evaluate(prepForEval(calculation));
+        const ansDisplay = ans == 0 ? ans : roundAns(ans);
 
         this.previousCalculation.push({calculation, ans})
         this.currentCalculation = [{command: null, value: null}];
-        this.currentCalculation.push({command: 'ans', value: `${ans}`})
+        this.currentCalculation.push({command: 'ans', value: `${ans}`, ansDisplay: `${ansDisplay}`})
         return;
     },
     clearLastEntry(lastItem) {
@@ -137,7 +152,6 @@ const calculatorState = {
 }
 
 const createItem = function(newCommand, newValue, lastItem) {
-
     // creates a new item to be added to the calculation.
 
     if (newCommand == 'number') {
@@ -148,6 +162,9 @@ const createItem = function(newCommand, newValue, lastItem) {
 
     if (newCommand == 'decimal') {
         if (lastItem.command == 'number') {
+            if (lastItem.value == '-') {
+                newValue = '0' + newValue;
+            }
             newValue = lastItem.value + newValue;
         } else {
             newValue = '0.';
@@ -156,10 +173,14 @@ const createItem = function(newCommand, newValue, lastItem) {
         newCommand = 'number';
     }
 
+    if (makeNegative(newValue, lastItem)) {
+        newCommand = 'number';
+    }
+
     return {command: newCommand, value: newValue};
 }
 
-const doNothing = function (newCommand, lastItem, state) {
+const doNothing = function (newCommand, newValue, lastItem, state) {
 
     // returns true if conditions are met, returns false otherwise
 
@@ -172,11 +193,13 @@ const doNothing = function (newCommand, lastItem, state) {
     }
 
     if (newCommand == 'operator') {
-        return lastItem.command == 'open';
+        return (
+            (lastItem.command == 'open' && newValue != '-')
+            || (lastItem.command == 'number' && lastItem.value == '-')
+        );
     }
     
     if (newCommand == 'decimal') {
-        console.log(lastItem.command && lastItem.value)
         return !(lastItem.command == null) && lastItem.value.includes('.')
     }
 
@@ -209,6 +232,21 @@ const doReplace = function (newItem, lastItem) {
     return false;
 }
 
+const makeNegative = function (newValue, lastItem) {
+    // return true if condiditions are met
+    if (newValue != '-') {
+        return false;
+    }
+    return (
+        lastItem.value != '+'
+        && (lastItem.command == 'open'
+            || lastItem.command == null
+            || lastItem.value == '*' 
+            || lastItem.value == '/'
+        )
+    );
+}
+
 const calcToString = function(calc) {
 
     // takes an array of objects and converts it into an string using 
@@ -221,6 +259,10 @@ const calcToString = function(calc) {
     return calc.reduce((string, item, index, arr) => {
         if (item.command == null) {
             return string;
+        }
+
+        if (item.command == 'ans') {
+            return string + item.ansDisplay;
         }
 
         const lastItem = arr[index - 1];
@@ -277,7 +319,6 @@ const prepForEval = function(arr) {
 }
 
 const evaluate = function(arr) {
-
     // recursively evaluates an array of numbers and operations (all srings) and returns the answer
 
     while (arr.includes('(') && arr.includes(')')) {
@@ -302,7 +343,7 @@ const evaluate = function(arr) {
     }
 
     if (arr.length < 2) {
-        return arr[0];
+        return arr[0] * 1;
     }
 
     let index = 1;
@@ -319,9 +360,60 @@ const evaluate = function(arr) {
 
     return operators.operate(
         arr[index],
-        +evaluate(arr.slice(0, index)),
-        +evaluate(arr.slice(index + 1))
+        evaluate(arr.slice(0, index)) *1,
+        evaluate(arr.slice(index + 1)) *1
     );
+}
+
+const roundAns = function (num) {
+    const displayMax = 12;
+
+    let roundedAns;
+    let sigFig = Math.floor(Math.log(Math.abs(num)) / Math.log(10) + 1)
+
+    if (sigFig > 0) {
+        if (sigFig > displayMax) {
+            roundedAns = num.toExponential(8);
+
+            let trimmedAns = trimZeros(
+                roundedAns.slice(0, roundedAns.indexOf('e') - 1)
+                )
+            let ansExp = roundedAns.slice(roundedAns.indexOf('e'));
+
+            return trimmedAns + ansExp;
+        } else {
+            let roundPlaces = Math.pow(10, (displayMax - sigFig) + 1);
+
+            return Math.round(num * roundPlaces) / roundPlaces;
+        }
+    } else if (sigFig <= 0) {
+        if (Math.abs(sigFig) >= 6) {
+            roundedAns = num.toExponential(8);
+
+            let trimmedAns = trimZeros(
+                roundedAns.slice(0, roundedAns.indexOf('e') - 1)
+                )
+            let ansExp = roundedAns.slice(roundedAns.indexOf('e'));
+
+            return trimmedAns + ansExp;
+        } else {
+            return String(num).slice(0, displayMax + 1);
+        }
+    }
+}
+
+const trimZeros = function (numString) {
+    let trimAmount = 0;
+
+    for (let i = numString.length - 1; i > 0; i--) {
+        if (numString[i] != 0) {
+            break;
+        } else {
+            trimAmount += 1;
+        }
+    }
+
+    return numString.slice(0, numString.length - trimAmount - 1);
 }
 
 const updateCalcDisplay = function (state) {
