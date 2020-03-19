@@ -43,9 +43,10 @@ const operators = {
 
 const calculatorState = {
     currentCalculation: [{command: null, value: null}],
-    previousCalculation: [],
+    previousCalculation: [null],
     openScope: 0,
     closedScope: 0,
+    lastCommand: null,
     updateCalculatorState(key) {
         const lastItem = this.currentCalculation[this.currentCalculation.length - 1];
 
@@ -55,6 +56,8 @@ const calculatorState = {
         if (!command) {
             command = 'number';
         }
+
+        this.lastCommand = command;
 
         if (doNothing(command, value, lastItem, this)) {
             return;
@@ -154,10 +157,8 @@ const calculatorState = {
 const createItem = function(newCommand, newValue, lastItem) {
     // creates a new item to be added to the calculation.
 
-    if (newCommand == 'number') {
-        if (lastItem.command == 'number') {
-            newValue = lastItem.value + newValue;
-        }
+    if (newCommand == 'number' && lastItem.command == 'number') {
+        newValue = lastItem.value + newValue;
     }
 
     if (newCommand == 'decimal') {
@@ -416,22 +417,33 @@ const trimZeros = function (numString) {
     return numString.slice(0, numString.length - trimAmount - 1);
 }
 
-const updateCalcDisplay = function (state) {
+const updateDisplay = function (state) {
 
     // updates the calculator display on the page using the calculator state
 
-    const display = document.querySelector('.calculator__display');
+    const displayCurrent = document.querySelector('.calculator-display__current');
 
-    let displayContent = calcToString(state.currentCalculation);
+    displayCurrent.textContent = calcToString(state.currentCalculation);
 
-    display.textContent = displayContent;
+    const displayPrevious = document.querySelector('.calculator-display__previous');
+
+    let previousCalc = state.previousCalculation[state.previousCalculation.length - 1];
+
+    if (previousCalc == null) {
+        displayPrevious.textContent = '';
+    } else if (state.lastCommand == 'calculate') {
+        displayPrevious.textContent = `${calcToString(previousCalc.calculation)} = ${previousCalc.ans}`;
+    } else {
+        displayPrevious.textContent = `Ans = ${previousCalc.ans}`;
+    }
 }
+
 
 const keys = document.querySelector('.calculator__keys');
 
 keys.addEventListener('click', (e) => {
     if (e.target.matches('button')) {
         calculatorState.updateCalculatorState(e.target);
-        updateCalcDisplay(calculatorState);
+        updateDisplay(calculatorState);
     }
 });
